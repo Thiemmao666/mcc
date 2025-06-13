@@ -1,0 +1,823 @@
+ Cài đặt highly available Kubernetes cluster
+
+
+
+## Mục tiêu
+
+1. Cài đặt keepalived cho IP chung của cluster (common IP)
+2. Cài đặt external etcd dưới dạng service
+3. Cài đặt containerd cho CRI
+
+## Prerequisites
+
+- Cần một host online (có kết nối với Internet) để tải các dữ liệu cần thiết cho cài đặt cụm (các gói cài đặt, image,...).
+- Mỗi máy trong cụm cluster cần có: 2CPU trở lên cũng như 2GB RAM hoặc hơn.
+- Đảm bảo hostname và địa chỉ MAC là duy nhất.
+- Tất cả các node trong cluster được kết nối tới nhau.
+- Cần 1 IP ảo đóng vai trò là common IP (endpoints của Control plane).
+
+---
+
+# Chuẩn bị tại máy online
+
+> **Note**
+>
+> Các thao tác trong guide này có thể cần sử dụng quyền `sudo`.
+
+Cài đặt các gói cần thiết sau:
+
+```bash
+apt install -y apt-transport-https ca-certificates curl software-properties-common
+```
+
+## 1. keepalived
+
+Tải package keepalived:
+
+```bash
+apt-get clean
+apt-get install --reinstall --download-only keepalived
+
+mkdir ${HOME}/1.keepalived
+cp /var/cache/apt/archives/*.deb ${HOME}/1.keepalived/
+```
+
+## 2. containerd
+
+Thiết lập để kết nối tới Docker repository:
+
+```bash
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmour -o /etc/apt/trusted.gpg.d/docker.gpg
+add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+apt-get update
+```
+
+Tải package containerd:
+
+```bash
+apt-get clean
+apt-get install --reinstall --download-only containerd.io
+
+mkdir ${HOME}/2.containerd
+cp /var/cache/apt/archives/*.deb ${HOME}/2.containerd/
+```
+
+## 3. etcd
+
+Tải về Cloudflare's PKI và TLS toolkit:
+
+```bash
+mkdir -p ${HOME}/3.etcd/1.cfssl
+cd ${HOME}/3.etcd/1.cfssl/
+curl -L -o cfssl https://pkg.cfssl.org/R1.2/cfssl_linux-amd64
+curl -L -o cfssljson https://pkg.cfssl.org/R1.2/cfssljson_linux-amd64
+```
+
+Tải về binary file của etcd:
+
+```bash
+mkdir -p ${HOME}/3.etcd/2.etcd
+cd ${HOME}/3.etcd/2.etcd/
+curl -L -o etcd-v3.5.15-linux-amd64.tar.gz https://storage.googleapis.com/etcd/v3.5.15/etcd-v3.5.15-linux-amd64.tar.gz
+tar -xzvf etcd-v3.5.15-linux-amd64.tar.gz
+cp etcd-v3.5.15-linux-amd64/etcd* .
+rm -rf etcd-v3.5.15-linux-amd64*
+```
+
+## 4. kubenetes
+
+### 4.1. kubenetes
+
+Thiết lập kết nối tới Kubernetes repository:
+
+```bash
+K8S_VERSION="v1.30"
+curl -fsSL https://pkgs.k8s.io/core:/stable:/${K8S_VERSION}/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/${K8S_VERSION}/deb/ /' | tee /etc/apt/sources.list.d/kubernetes.list
+apt-get update
+```
+
+Kiểm tra kubernetes package repo và signing key mới nhất [tại đây](https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/#install-using-native-package-management).
+
+Tải các package kubernetes components:
+
+```bash
+apt-get clean
+apt-get install --reinstall --download-only kubelet kubeadm kubectl kubernetes-cni cri-tools
+
+mkdir -p ${HOME}/4.kubernetes/1.kubernetes
+cp /var/cache/apt/archives/*.deb ${HOME}/4.kubernetes/1.kubernetes/
+```
+
+### 4.2. images
+
+Cài đặt containerd trên máy online:
+
+```bash
+apt-get install containerd.io
+```
+
+Tải về và nén các kubernetes components image:
+
+```bash
+mkdir -p ${HOME}/4.kubernetes/2.images
+cd ${HOME}/4.kubernetes/2.images/
+
+cat <<EOF > images.txt
+docker.io/flannel/flannel-cni-plugin:v1.5.1-flannel1
+docker.io/flannel/flannel:v0.25.5
+registry.k8s.io/coredns/coredns:v1.11.1
+registry.k8s.io/kube-apiserver:v1.30.3
+registry.k8s.io/kube-controller-manager:v1.30.3
+registry.k8s.io/kube-proxy:v1.30.3
+registry.k8s.io/kube-scheduler:v1.30.3
+registry.k8s.io/pause:3.9
+EOF
+
+for image in $(cat images.txt)
+do
+  tarname="$(echo -n ${image} | sed -e 's/\//-/g' -e 's/:/-/').container.tar"
+  docker pull ${image}
+  docker save -o ${tarname} ${image}
+done
+```
+
+> **Note**
+>
+> Để xác định tag phù hợp cho các image cần tải về ta có thể dùng cách sau:
+>
+> - Với các image của kubenetes:
+>
+>   - Bước 1: Cài đặt kubenetes trên máy online bằng lệnh:
+>
+>     ```bash
+>     apt-get install kubelet kubeadm kubectl kubernetes-cni cri-tools
+>     ```
+>
+>   - Bước 2: Xác định tag của image:
+>
+>     ```bash
+>     kubeadm config images pull --kubernetes-version <kubernetes-version>
+>     crictl images
+>     ```
+>
+> - Với các image của CNI (flannel):
+>   - Xác định image phù hợp với phiên bản kubernetes cần cài đặt.
+>   - Nếu sử dụng bản kubernetes mới nhất có thể truy cập tại [đây](https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml) để xác định.
+
+### 4.3. cluster-config
+
+Tạo file cấu hình cluster `${HOME}/4.kubernetes/3.cluster-config/config.yaml` và chỉnh sửa thông tin `node-ip` của các etcd member như dưới đây:
+
+```yaml
+apiVersion: kubeadm.k8s.io/v1beta3
+kind: ClusterConfiguration
+kubernetesVersion: stable
+apiserverAdvertiseAddress: <init-node-ip>
+controlPlaneEndpoint: "<load-balancer-endpoint or common-ip>:6443"
+networking:
+  podSubnet: "10.244.0.0/16" # Pob subnet CIDR cần cấu hình /16 nếu sử dụng flannel CNI.
+etcd:
+  external:
+    endpoints:
+      - https://<etcd-member-01-node-ip>:2379
+      - https://<etcd-member-02-node-ip>:2379
+      - https://<etcd-member-03-node-ip>:2379
+    caFile: /etc/etcd/ssl/ca.pem
+    certFile: /etc/etcd/ssl/client.pem
+    keyFile: /etc/etcd/ssl/client-key.pem
+```
+
+### 4.4. cni
+
+```bash
+mkdir -p ${HOME}/4.kubernetes/4.cni
+cd ${HOME}/4.kubernetes/4.cni/
+curl -L -o kube-flannel.yml https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
+```
+
+---
+
+Hiện tại, tại máy online, ta đã có đủ các file cần thiết để cài đặt cụm Kubernetes. Cấu trúc thư mục có dạng sau:
+
+```bash
+${HOME}
+├── 1.keepalived
+├── 3.etcd
+    ├── 1.cfssl
+    └── 2.etcd
+├── 2.containerd
+└── 4.kubernetes
+    ├── 1.kubernetes
+    ├── 2.images
+    ├── 3.cluster-config
+    └── 4.cni
+```
+
+Copy tất cả các file này đến tất cả các node để tiến hành cài đặt cũng như backup phòng xảy ra disaster.
+
+---
+
+# Cài đặt
+
+## 1. keepalived (15 mins per node)
+
+Cài đặt keepalived tại các master node:
+
+```bash
+cd ${HOME}/1.keepalived/
+dpkg -i *.deb
+apt-get install -f
+```
+
+Lấy cấu hình mạng và ghi nhớ network interface và ip của các node:
+
+```bash
+ip a
+```
+
+Tạo file cấu hình keepalived `/etc/keepalived/keepalived.conf` tại node đảm nhận MASTER role của keepalived:
+
+```conf
+vrrp_instance vrrp_1 {
+    state MASTER
+    interface <network-interface>
+    virtual_router_id 101
+    priority 110
+    advert_int 1
+    virtual_ipaddress {
+        <common-ip>
+    }
+    unicast_src_ip <master-node-ip>
+    unicast_peer {
+        <backup-01-node-ip>
+        <backup-02-node-ip>
+        ...
+        # không bao gồm 'unicast_src_ip'
+    }
+}
+```
+
+Tạo file cấu hình keepalived `/etc/keepalived/keepalived.conf` tại node đảm nhận BACKUP role của keepalived:
+
+```conf
+vrrp_instance vrrp_1 {
+    state BACKUP
+    interface <network-interface>
+    virtual_router_id 101
+    priority 109 # độ ưu tiên phải nhỏ hơn node master
+    advert_int 1
+    virtual_ipaddress {
+        <common-ip>
+    }
+    unicast_src_ip <backup-n-node-ip>
+    unicast_peer {
+        <master-node-ip>
+        <backup-01-node-ip>
+        ...
+        # không bao gồm 'unicast_src_ip'
+    }
+}
+```
+
+> **Note**
+>
+> Nếu card mạng hỗ trợ multicast, ta có thể bỏ qua phần config `unicast_src_ip` và `unicast_peer` (card mạng hỗ trợ nếu có keywork `MULTICAST` được chỉ định trong danh sách trong dấu ngoặc nhọn khi chạy `ip a`).
+>
+> **Ngoài ra, giữa các master node cần mở giao thức 112.**
+
+Khởi động keepalived:
+
+```bash
+systemctl enable keepalived
+systemctl restart keepalived
+systemctl status keepalived
+```
+
+Kiểm tra MASTER đã nhận common IP hay chưa:
+
+```bash
+ip -f inet addr show <network-interface>
+```
+
+## 2. containerd (15 mins per node)
+
+Load các kernel module cần thiết và config để tự động load chúng khi bootstrap:
+
+```bash
+modprobe overlay
+modprobe br_netfilter
+
+tee /etc/modules-load.d/containerd.conf <<EOF
+overlay
+br_netfilter
+EOF
+```
+
+Cài đặt containerd tại tất cả các node:
+
+```bash
+cd ${HOME}/2.containerd/
+dpkg -i *.deb
+apt-get install -f
+```
+
+Reset lại file cấu hình mặc định cho containerd:
+
+```bash
+containerd config default > /etc/containerd/config.toml
+```
+
+Chỉnh sửa lại file cấu hình `/etc/containerd/config.toml` như sau:
+
+```toml
+# Need CRI support enabled to use containerd with Kubernetes
+disabled_plugins = []
+...
+# Overriding the sandbox (pause) image to consistent with that used by kubeadm when run `kubeadm config images pull`
+[plugins."io.containerd.grpc.v1.cri"]
+  sandbox_image = "registry.k8s.io/pause:3.9"
+...
+# Use `systemd` cgroup driver for containerd
+[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
+  SystemdCgroup = true
+```
+
+Khởi động lại containerd:
+
+```bash
+systemctl enable containerd
+systemctl restart containerd
+systemctl status containerd
+```
+
+## 3. etcd (60 mins per node)
+
+### 3.1. Tạo certificates
+
+Tạo thư mục chứa certificates ở tất cả Etcd node
+
+```bash
+mkdir -p /etc/etcd/ssl
+```
+
+Chọn một host bất kì để thực hiện tạo certificates cho cụm etcd, các chứng chỉ cần tạo:
+
+- Chứng chỉ cho etcd-server: dùng để server xác thực với client (ví dụ về client: etcdctl, kube-apiserver,...)
+- Chứng chỉ cho etcd-peer: dùng để các peers xác thực lẫn nhau
+- Chứng chỉ cho etcd-client: dùng để client xác thực với server
+
+a. Cài đặt `cfssl` - Cloudflare's PKI và TLS toolkit
+
+```bash
+cd ${HOME}/3.etcd/cfssl/
+cp cfssl* /usr/local/bin/
+chmod +x /usr/local/bin/cfssl*
+```
+
+b. Tạo CA (Certificate Authority) certificate và CA config
+
+> **Note**
+>
+> - Các file config và certificates cho etcd sẽ được tạo tại `${HOME}/etcd-certs/`:
+>
+>   ```bash
+>   mkdir -p ${HOME}/etcd-certs
+>   ```
+>
+> - Các file `*.csr` được tạo ra không cần sử dụng trong guide này.
+
+Tạo file CA CSR (Certificate Signing Request) `${HOME}/etcd-certs/ca-csr.json`:
+
+```json
+{
+  "CN": "mcc-etcd-ca-csr",
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "C": "VN",
+      "ST": "Hanoi",
+      "L": "Hanoi",
+      "O": "SRV / Samsung Electronics",
+      "OU": "Service Operation P / S/W Solutions G"
+    }
+  ]
+}
+```
+
+Tạo CA certificate:
+
+```bash
+cd ${HOME}/etcd-certs/
+cfssl gencert -initca ca-csr.json | cfssljson -bare ca
+# Expected output: 'ca.pem', 'ca-key.pem' and 'ca.csr'
+```
+
+Tạo file CA config `${HOME}/etcd-certs/ca-config.json`:
+
+```json
+{
+  "signing": {
+    "default": {
+      "expiry": "876000h"
+    },
+    "profiles": {
+      "server": {
+        "usages": ["signing", "key encipherment", "server auth"],
+        "expiry": "876000h"
+      },
+      "peer": {
+        "usages": ["signing", "key encipherment", "server auth", "client auth"],
+        "expiry": "876000h"
+      },
+      "client": {
+        "usages": ["signing", "key encipherment", "client auth"],
+        "expiry": "876000h"
+      }
+    }
+  }
+}
+```
+
+c. Tạo etcd-server certificate
+
+Tạo file etcd-server CSR `${HOME}/etcd-certs/server-csr.json`:
+
+```json
+{
+  "CN": "mcc-etcd-server-csr",
+  "hosts": [
+    "127.0.0.1",
+    "<etcd-member-01-node-ip>",
+    "<etcd-member-02-node-ip>",
+    "<etcd-member-03-node-ip>"
+  ],
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "C": "VN",
+      "ST": "Hanoi",
+      "L": "Hanoi",
+      "O": "SRV / Samsung Electronics",
+      "OU": "Service Operation P / S/W Solutions G"
+    }
+  ]
+}
+```
+
+Tạo etcd-server certificate:
+
+```bash
+cd ${HOME}/etcd-certs/
+cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -profile=server server-csr.json | cfssljson -bare server
+# Expected output: 'server.pem', 'server-key.pem' and 'server.csr'
+```
+
+> **Note**
+>
+> Khi tạo cert `cfssl gencert`, tham số `-profile` phải trùng với tên key `signing.profiles.<key>` trong file `ca-config.json`.
+
+d. Tạo etcd-peer certificate
+
+Tạo file etcd-peer CSR `${HOME}/etcd-certs/peer-csr.json`:
+
+```json
+{
+  "CN": "mcc-etcd-peer-csr",
+  "hosts": [
+    "127.0.0.1",
+    "<etcd-member-01-node-ip>",
+    "<etcd-member-02-node-ip>",
+    "<etcd-member-03-node-ip>"
+  ],
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "C": "VN",
+      "ST": "Hanoi",
+      "L": "Hanoi",
+      "O": "SRV / Samsung Electronics",
+      "OU": "Service Operation P / S/W Solutions G"
+    }
+  ]
+}
+```
+
+Tạo etcd-peer certificate:
+
+```bash
+cd ${HOME}/etcd-certs/
+cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -profile=peer peer-csr.json | cfssljson -bare peer
+# Expected output: 'peer.pem', 'peer-key.pem' and 'peer.csr'
+```
+
+e. Tạo etcd-client certificate
+
+Tạo file etcd-client CSR `${HOME}/etcd-certs/client-csr.json`:
+
+```json
+{
+  "CN": "mcc-etcd-client-csr",
+  "hosts": [
+    "127.0.0.1",
+    "<node-01-ip>",
+    "<node-02-ip>",
+    "<node-03-ip>",
+    "<node-04-ip>",
+    "<node-05-ip>",
+    "<node-06-ip>"
+  ],
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "C": "VN",
+      "ST": "Hanoi",
+      "L": "Hanoi",
+      "O": "SRV / Samsung Electronics",
+      "OU": "Service Operation P / S/W Solutions G"
+    }
+  ]
+}
+```
+
+Tạo etcd-client certificate:
+
+```bash
+cd ${HOME}/etcd-certs/
+cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -profile=client client-csr.json | cfssljson -bare client
+# Expected output: 'client.pem', 'client-key.pem' and 'client.csr'
+```
+
+---
+
+Cấu trúc thư mục certificate hiện tại:
+
+```bash
+${HOME}/etcd-certs
+├── ca-config.json
+├── ca.csr
+├── ca-csr.json
+├── ca-key.pem
+├── ca.pem
+├── client.csr
+├── client-csr.json
+├── client-key.pem
+├── client.pem
+├── peer.csr
+├── peer-csr.json
+├── peer-key.pem
+├── peer.pem
+├── server.csr
+├── server-csr.json
+├── server-key.pem
+└── server.pem
+```
+
+> **Note**
+>
+> Copy các file `*.pem` vào folder `/etc/etcd/ssl/` của các node sau:
+>
+> - **Etcd node**: `ca.pem`, `server.pem`, `server-key.pem`, `peer.pem`, `peer-key.pem`, `client.pem`, `client-key.pem`.
+> - **Client node** (các node mà từ đó etcd-client muốn gọi được đến etcd cluster): `ca.pem`, `client.pem`, `client-key.pem`.
+>
+> Hoặc copy sang tất cả các node để backup phòng xảy ra disaster.
+
+### 3.2. Tạo etcd service
+
+Thực hiện các bước sau ở tất cả etcd node:
+
+```bash
+# Create etcd data directory
+mkdir -p /var/lib/etcd/
+
+# Install etcd library and etcd tools
+cd ${HOME}/3.etcd/2.etcd/
+cp etcd* /usr/local/bin/
+```
+
+Đổi hostname tất cả các node, sao cho các hostname là duy nhất và thêm thông tin các node trong cụm vào file `/etc/hosts` ở từng node:
+
+```bash
+hostnamectl set-hostname master01 # E.g. master01, master02, worker01,worker02,...
+
+tee -a /etc/hosts <<EOT
+<master01_IP> <master01_hostname>
+<master02_IP> <master02_hostname>
+<worker01_IP> <worker02_hostname>
+...
+EOT
+```
+
+Chỉnh sửa file config etcd service `/etc/systemd/system/etcd.service`:
+
+```service
+[Unit]
+Description=Etcd cluster
+After=network-online.target local-fs.target remote-fs.target time-sync.target
+Wants=network-online.target local-fs.target remote-fs.target time-sync.target
+Documentation=https://github.com/etcd-io/etcd
+
+[Service]
+Type=notify
+WorkingDirectory=/var/lib/etcd/
+ExecStart=/usr/local/bin/etcd \
+--name=<hostname> \
+--data-dir=/var/lib/etcd \
+--initial-cluster-token=etcd-cluster-0 \
+--initial-cluster-state=new \
+--initial-advertise-peer-urls=https://<host_ip>:2380 \
+--listen-peer-urls=https://<host_ip>:2380 \
+--listen-client-urls=https://<host_ip>:2379,http://127.0.0.1:2379 \
+--advertise-client-urls=https://<host_ip>:2379 \
+--initial-cluster=<etcd-member-01-hostname>=https://<etcd-member-01-node-ip>:2380,<etcd-member-02-hostname>=https://<etcd-member-02-node-ip>:2380,<etcd-member-03-hostname>=https://<etcd-member-03-node-ip>:2380 \
+--trusted-ca-file=/etc/etcd/ssl/ca.pem \
+--cert-file=/etc/etcd/ssl/server.pem \
+--key-file=/etc/etcd/ssl/server-key.pem \
+--peer-client-cert-auth \
+--peer-trusted-ca-file=/etc/etcd/ssl/ca.pem \
+--peer-cert-file=/etc/etcd/ssl/peer.pem \
+--peer-key-file=/etc/etcd/ssl/peer-key.pem
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Khởi động etcd:
+
+```bash
+systemctl daemon-reload
+systemctl enable etcd
+systemctl start etcd
+systemctl status etcd
+```
+
+Sau khi thực hiện các bước trên ở tất cả etcd node, tiến hành kiểm tra health của cụm etcd như sau:
+
+```bash
+export ETCDCTL_API=3
+export ETCDCTL_CACERT=/etc/etcd/ssl/ca.pem
+export ETCDCTL_CERT=/etc/etcd/ssl/client.pem
+export ETCDCTL_KEY=/etc/etcd/ssl/client-key.pem
+export ETCD_01=https://<etcd-member-01-node-ip>
+export ETCD_02=https://<etcd-member-02-node-ip>
+export ETCD_03=https://<etcd-member-03-node-ip>
+
+etcdctl endpoint health \
+--endpoints=$ETCD_01:2379,$ETCD_02:2379,$ETCD_03:2379 \
+--cluster \
+--write-out=table
+
+etcdctl endpoint status \
+--endpoints=$ETCD_01:2379,$ETCD_02:2379,$ETCD_03:2379 \
+--cluster \
+--write-out=table
+
+etcdctl member list \
+--endpoints=$ETCD_01:2379,$ETCD_02:2379,$ETCD_03:2379 \
+--write-out=table
+```
+
+## 4. kubernetes (30 mins per node)
+
+Tắt bộ nhớ swap và tự động tắt swap khi boostrap tại tất cả các node:
+
+```bash
+swapoff -a
+sed -i '/[ \t]\+swap[ \t]\+/ s/^\(.*\)$/# \1/g' /etc/fstab
+```
+
+Config mạng tại tất cả các node:
+
+```bash
+tee /etc/sysctl.d/kubernetes.conf <<EOT
+net.bridge.bridge-nf-call-ip6tables = 1
+net.bridge.bridge-nf-call-iptables = 1
+net.ipv4.ip_forward = 1
+EOT
+
+sysctl --system
+```
+
+Cài đặt kubernetes tại tất cả các node:
+
+```bash
+cd ${HOME}/4.kubernetes/1.kubernetes/
+dpkg -i *.deb
+apt-get install -f
+```
+
+Load các image cần thiết trên tất cả các node cho việc bootstrap cluster:
+
+```bash
+cd ${HOME}/4.kubernetes/2.images/
+
+for image in $(ls -1 *.tar)
+do
+  ctr --namespace k8s.io image import ${image}
+done
+```
+
+> **Note**
+>
+> Containerd hỗ trợ tính năng namespace. Do kubelet sử dụng namespace `k8s.io` làm namespace cho image của nó, nên khi import image cần chỉ định tag `--namespace k8s.io`.
+
+Check images:
+
+```bash
+crictl images
+```
+
+Nếu lệnh trên gặp lỗi có dạng như: "_...As the default settings are now deprecated,..._", tạo file `/etc/crictl.yaml` với nội dung sau:
+
+```yaml
+runtime-endpoint: unix:///run/containerd/containerd.sock
+image-endpoint: unix:///run/containerd/containerd.sock
+```
+
+Tiếp theo, tiến hành bootstrap cluster:
+
+```bash
+cd ${HOME}/4.kubernetes/3.cluster-config/
+kubeadm init --config=config.yaml --upload-certs
+```
+
+Output của lệnh bootstrap có đoạn như sau được dùng để bootstrap các master node còn lại và data plane:
+
+```
+...
+
+You can now join any number of control-plane node by running the following command on each as a root:
+
+    kubeadm join <common-ip>:6443 --token <token> --discovery-token-ca-cert-hash sha256:<token> --control-plane --certificate-key <token>
+Please note that the certificate-key gives access to cluster sensitive data, keep it secret!As a safeguard, uploaded-certs will be deleted in two hours; If necessary, you can use kubeadm init phase upload-certs to reload certs afterward.
+
+Then you can join any number of worker nodes by running the following on each as root:
+
+    kubeadm join <common-ip>:6443 --token <token> --discovery-token-ca-cert-hash sha256:<token>
+```
+
+Chạy lệnh sau để cấu hình credential cho kubectl:
+
+```bash
+mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+```
+
+Mặc định, kubeadm sẽ tạo deployment coredns, và ta không thể custom config deployment coredns. Nên ta có thể chỉnh sửa thủ công deployment coredns để chỉ chạy trên master node nếu cần:
+
+```yaml
+spec:
+  template:
+    spec:
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: ""
+```
+
+Cuối cùng, cài đặt CNI cho cluster:
+
+```bash
+cd ${HOME}/4.kubernetes/4.cni/
+kubectl apply -f kube-flannel.yml
+```
+
+Kiểm tra các node trên cluster sau khi bootstrap, đảm bảo tất cả các node ở trạng thái `Ready`:
+
+```bash
+kubectl get nodes
+```
+
+> **Tip**
+>
+> Để thuận tiện cho maintain cluster, ta thêm các alias sau vào file `${HOME}/.barshrc`:
+>
+> ```bashrc
+> ...
+> # alias for kubectl
+> alias k='kubectl'
+> alias kns='kubectl config set-context --current --namespace'
+> alias kg='kubectl get'
+> alias kd='kubectl describe'
+> alias kl='kubectl logs'
+> alias ka='kubectl apply'
+> alias krm='kubectl delete'
+> alias kex='kubectl exec -it'
+> ```
+>
+> Sau đó, để apply, chạy `source ${HOME}/.bashrc`.
+
