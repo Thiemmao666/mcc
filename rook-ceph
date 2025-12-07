@@ -1,0 +1,222 @@
+Name:         rook-ceph
+Namespace:    rook-ceph
+Labels:       <none>
+Annotations:  <none>
+API Version:  ceph.rook.io/v1
+Kind:         CephCluster
+Metadata:
+  Creation Timestamp:  2025-10-05T07:16:40Z
+  Finalizers:
+    cephcluster.ceph.rook.io
+  Generation:        6
+  Resource Version:  14827219
+  UID:               2c01154b-5266-44bd-8ed1-1c1321be7e7f
+Spec:
+  Ceph Config:
+    Global:
+      osd_pool_default_size:  2
+  Ceph Version:
+    Allow Unsupported:  false
+    Image:              quay.io/ceph/ceph:v18.2.4
+  Cleanup Policy:
+    Allow Uninstall With Volumes:  false
+    Confirmation:                  
+    Sanitize Disks:
+      Data Source:                                    zero
+      Iteration:                                      1
+      Method:                                         quick
+  Continue Upgrade After Checks Even If Not Healthy:  false
+  Crash Collector:
+    Disable:  false
+  Csi:
+    Cephfs:
+    Read Affinity:
+      Enabled:  false
+  Dashboard:
+    Enabled:           true
+    Ssl:               true
+  Data Dir Host Path:  /var/lib/rook
+  Disruption Management:
+    Manage Pod Budgets:       true
+    Osd Maintenance Timeout:  30
+    Pg Health Check Timeout:  0
+  External:
+  Health Check:
+    Daemon Health:
+      Mon:
+        Disabled:  false
+        Interval:  45s
+      Osd:
+        Disabled:  false
+        Interval:  60s
+      Status:
+        Disabled:  false
+        Interval:  60s
+    Liveness Probe:
+      Mgr:
+        Disabled:  false
+      Mon:
+        Disabled:  false
+      Osd:
+        Disabled:  false
+    Startup Probe:
+      Mgr:
+        Disabled:  false
+      Mon:
+        Disabled:  false
+      Osd:
+        Disabled:  false
+  Log Collector:
+    Enabled:       true
+    Max Log Size:  500M
+    Periodicity:   daily
+  Mgr:
+    Allow Multiple Per Node:  false
+    Count:                    2
+    Modules:
+      Enabled:  true
+      Name:     rook
+  Mon:
+    Allow Multiple Per Node:  false
+    Count:                    3
+  Monitoring:
+    Enabled:           false
+    Metrics Disabled:  false
+  Network:
+    Connections:
+      Compression:
+        Enabled:  false
+      Encryption:
+        Enabled:     false
+      requireMsgr2:  false
+    Multi Cluster Service:
+  Placement:
+    Mgr:
+      Node Affinity:
+        Required During Scheduling Ignored During Execution:
+          Node Selector Terms:
+            Match Expressions:
+              Key:       kubernetes.io/hostname
+              Operator:  In
+              Values:
+                stg-master01
+                stg-master02
+      Tolerations:
+        Effect:    NoSchedule
+        Key:       node-role.kubernetes.io/control-plane
+        Operator:  Exists
+    Mon:
+      Node Affinity:
+        Required During Scheduling Ignored During Execution:
+          Node Selector Terms:
+            Match Expressions:
+              Key:       kubernetes.io/hostname
+              Operator:  In
+              Values:
+                stg-master01
+                stg-master02
+                stg-master03
+      Tolerations:
+        Effect:    NoSchedule
+        Key:       node-role.kubernetes.io/control-plane
+        Operator:  Exists
+    Osd:
+      Tolerations:
+        Effect:    NoSchedule
+        Key:       node-role.kubernetes.io/control-plane
+        Operator:  Exists
+    Prepareosd:
+      Tolerations:
+        Effect:    NoSchedule
+        Key:       node-role.kubernetes.io/control-plane
+        Operator:  Exists
+  Priority Class Names:
+    Mgr:                                   system-cluster-critical
+    Mon:                                   system-node-critical
+    Osd:                                   system-node-critical
+  Remove OS Ds If Out And Safe To Remove:  true
+  Security:
+    Key Rotation:
+      Enabled:  false
+    Kms:
+  Skip Upgrade Checks:  false
+  Storage:
+    Allow Device Class Update:      false
+    Allow Osd Crush Weight Update:  false
+    Config:
+      Osds Per Device:  1
+    Devices:
+      Name:                           vdb
+    Flapping Restart Interval Hours:  0
+    Only Apply OSD Placement:         false
+    Store:
+    Use All Devices:                        false
+    Use All Nodes:                          true
+  Upgrade OSD Requires Healthy P Gs:        false
+  Wait Timeout For Healthy OSD In Minutes:  10
+Status:
+  Ceph:
+    Capacity:
+      Bytes Available:  19566628864
+      Bytes Total:      21474836480
+      Bytes Used:       1908207616
+      Last Updated:     2025-12-07T09:08:58Z
+    Details:
+      MON_CLOCK_SKEW:
+        Message:   clock skew detected on mon.b, mon.c
+        Severity:  HEALTH_WARN
+      MON_DISK_LOW:
+        Message:   mon c is low on available space
+        Severity:  HEALTH_WARN
+      PG_DEGRADED:
+        Message:   Degraded data redundancy: 2074/4148 objects degraded (50.000%), 49 pgs degraded, 49 pgs undersized
+        Severity:  HEALTH_WARN
+      SLOW_OPS:
+        Message:      842837 slow ops, oldest one blocked for 349807 sec, daemons [mon.b,mon.c] have slow ops.
+        Severity:     HEALTH_WARN
+    Fsid:             09397934-b2b0-4431-bfdd-3cd777b68b5d
+    Health:           HEALTH_WARN
+    Last Changed:     2025-12-06T22:57:41Z
+    Last Checked:     2025-12-07T09:08:58Z
+    Previous Health:  HEALTH_ERR
+    Versions:
+      Mds:
+        ceph version 18.2.4 (e7ad5345525c7aa95470c26863873b581076945d) reef (stable):  2
+      Mgr:
+        ceph version 18.2.4 (e7ad5345525c7aa95470c26863873b581076945d) reef (stable):  2
+      Mon:
+        ceph version 18.2.4 (e7ad5345525c7aa95470c26863873b581076945d) reef (stable):  3
+      Osd:
+        ceph version 18.2.4 (e7ad5345525c7aa95470c26863873b581076945d) reef (stable):  1
+      Overall:
+        ceph version 18.2.4 (e7ad5345525c7aa95470c26863873b581076945d) reef (stable):  8
+  Conditions:
+    Last Heartbeat Time:   2025-12-07T08:52:56Z
+    Last Transition Time:  2025-12-07T08:52:56Z
+    Message:               Configuring Ceph Mons
+    Reason:                ClusterProgressing
+    Status:                True
+    Type:                  Progressing
+    Last Heartbeat Time:   2025-12-07T09:08:59Z
+    Last Transition Time:  2025-12-06T22:57:42Z
+    Message:               Cluster created successfully
+    Reason:                ClusterCreated
+    Status:                True
+    Type:                  Ready
+  Message:                 Cluster created successfully
+  Observed Generation:     5
+  Phase:                   Ready
+  State:                   Created
+  Storage:
+    Device Classes:
+      Name:  hdd
+    Osd:
+      Store Type:
+        Bluestore:  2
+  Version:
+    Image:    quay.io/ceph/ceph:v18.2.4
+    Version:  18.2.4-0
+Events:
+  Type    Reason              Age   From                          Message
+  ----    ------              ----  ----                          -------
+  Normal  ReconcileSucceeded  16m   rook-ceph-cluster-controller  successfully configured CephCluster "rook-ceph/rook-ceph"
