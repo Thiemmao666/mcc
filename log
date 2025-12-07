@@ -1,0 +1,51 @@
+a@stg-master01:~/1.mcc-service/4.rook-ceph/1.manifests$ kl  rook-ceph-operator-57cf8dbdfc-kj7d2 | tail  -n 50
+2025-12-07 08:53:00.554112 I | op-config: successfully applied settings to the mon configuration database
+2025-12-07 08:53:00.555268 I | op-config: deleting "global" "log file" option from the mon configuration database
+2025-12-07 08:53:00.852476 I | op-config: successfully set "mds.mccfs-a"="mds_join_fs"="mccfs" option to the mon configuration database
+2025-12-07 08:53:00.914186 I | op-mds: deployment for mds "rook-ceph-mds-mccfs-a" already exists. updating if needed
+2025-12-07 08:53:00.934813 I | op-k8sutil: deployment "rook-ceph-mds-mccfs-a" did not change, nothing to update
+2025-12-07 08:53:00.934847 I | cephclient: getting or creating ceph auth key "mds.mccfs-b"
+2025-12-07 08:53:01.333026 I | op-config: successfully deleted "log file" option from the mon configuration database
+2025-12-07 08:53:01.333070 I | op-mon: checking for basic quorum with existing mons
+2025-12-07 08:53:01.460291 I | op-mon: mon "b" cluster IP is 10.102.133.104
+2025-12-07 08:53:01.632661 I | op-mon: mon "c" cluster IP is 10.102.20.85
+2025-12-07 08:53:02.661663 I | op-mon: mon "a" cluster IP is 10.104.248.137
+2025-12-07 08:53:02.862584 I | op-mds: setting mds config flags
+2025-12-07 08:53:02.862806 I | op-config: setting "mds.mccfs-b"="mds_join_fs"="mccfs" option to the mon configuration database
+2025-12-07 08:53:03.422841 I | op-config: successfully set "mds.mccfs-b"="mds_join_fs"="mccfs" option to the mon configuration database
+2025-12-07 08:53:03.453812 I | op-mds: deployment for mds "rook-ceph-mds-mccfs-b" already exists. updating if needed
+2025-12-07 08:53:03.477750 I | op-mon: saved mon endpoints to config map map[csi-cluster-config-json:[{"clusterID":"rook-ceph","monitors":["10.102.133.104:6789","10.102.20.85:6789","10.104.248.137:6789"],"cephFS":{"netNamespaceFilePath":"","subvolumeGroup":"","kernelMountOptions":"","fuseMountOptions":""},"rbd":{"netNamespaceFilePath":"","radosNamespace":""},"nfs":{"netNamespaceFilePath":""},"readAffinity":{"enabled":false,"crushLocationLabels":null},"namespace":""}] data:b=10.102.133.104:6789,c=10.102.20.85:6789,a=10.104.248.137:6789 mapping:{"node":{"a":{"Name":"stg-master03","Hostname":"stg-master03","Address":"172.17.1.241"},"b":{"Name":"stg-master01","Hostname":"stg-master01","Address":"172.17.0.198"},"c":{"Name":"stg-master02","Hostname":"stg-master02","Address":"172.17.0.197"}}} maxMonId:7 outOfQuorum:]
+2025-12-07 08:53:03.496500 I | op-k8sutil: deployment "rook-ceph-mds-mccfs-b" did not change, nothing to update
+2025-12-07 08:53:04.072191 I | cephclient: writing config file /var/lib/rook/rook-ceph/rook-ceph.config
+2025-12-07 08:53:04.072496 I | cephclient: generated admin config in /var/lib/rook/rook-ceph
+2025-12-07 08:53:04.167716 I | ceph-file-controller: filesystem "mccfs" already exists
+2025-12-07 08:53:04.524551 I | op-mon: deployment for mon rook-ceph-mon-b already exists. updating if needed
+2025-12-07 08:53:04.542255 I | op-k8sutil: deployment "rook-ceph-mon-b" did not change, nothing to update
+2025-12-07 08:53:04.542285 I | op-mon: waiting for mon quorum with [b c a]
+2025-12-07 08:53:05.073675 I | op-mon: mons running: [b c a]
+2025-12-07 08:53:05.973409 I | op-mon: Monitors in quorum: [a b c]
+2025-12-07 08:53:06.062976 I | op-mon: deployment for mon rook-ceph-mon-c already exists. updating if needed
+2025-12-07 08:53:06.097276 I | op-k8sutil: deployment "rook-ceph-mon-c" did not change, nothing to update
+2025-12-07 08:53:06.097436 I | op-mon: waiting for mon quorum with [b c a]
+2025-12-07 08:53:06.184740 I | op-mon: mons running: [b c a]
+2025-12-07 08:53:06.992048 I | op-mon: Monitors in quorum: [a b c]
+2025-12-07 08:53:07.010144 I | op-mon: deployment for mon rook-ceph-mon-a already exists. updating if needed
+2025-12-07 08:53:07.053134 I | op-k8sutil: deployment "rook-ceph-mon-a" did not change, nothing to update
+2025-12-07 08:53:07.053253 I | op-mon: waiting for mon quorum with [b c a]
+2025-12-07 08:53:07.134822 I | op-mon: mons running: [b c a]
+2025-12-07 08:53:10.188375 I | cephclient: setting pool property "compression_mode" to "none" on pool "mccfs-metadata"
+2025-12-07 08:53:10.277035 I | op-mon: Monitors in quorum: [a b c]
+2025-12-07 08:53:10.277071 I | op-mon: mons created: 3
+2025-12-07 08:53:11.188568 I | op-mon: waiting for mon quorum with [b c a]
+2025-12-07 08:53:11.275230 I | op-mon: mons running: [b c a]
+2025-12-07 08:53:12.126768 I | cephclient: application "cephfs" is already set on pool "mccfs-metadata"
+2025-12-07 08:53:12.127434 I | cephclient: reconciling replicated pool mccfs-metadata succeeded
+2025-12-07 08:53:12.186050 I | op-mon: Monitors in quorum: [a b c]
+2025-12-07 08:53:12.186497 I | ceph-spec: not applying network settings for cluster "rook-ceph" ceph networks
+2025-12-07 08:53:12.190247 I | cephclient: getting or creating ceph auth key "client.csi-rbd-provisioner"
+2025-12-07 08:53:13.397300 I | cephclient: setting pool property "compression_mode" to "none" on pool "mccfs-mccpool"
+2025-12-07 08:53:18.999468 I | cephclient: application "cephfs" is already set on pool "mccfs-mccpool"
+2025-12-07 08:53:18.999594 I | cephclient: reconciling replicated pool mccfs-mccpool succeeded
+2025-12-07 08:53:19.624573 I | cephclient: setting allow_standby_replay to true for filesystem "mccfs"
+2025-12-07 08:53:21.162638 I | cephclient: creating cephfs "mccfs" subvolume group "csi"
+2025-12-07 08:53:23.345577 I | cephclient: successfully created subvolume group "csi" in filesystem "mccfs"
