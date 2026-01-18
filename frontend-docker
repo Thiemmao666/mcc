@@ -1,0 +1,16 @@
+
+
+FROM sg-docker-local.bart.sec.samsung.net/nginx:latest
+
+RUN rm -rf /etc/nginx/conf.d/default.conf
+
+COPY default.conf /etc/nginx/conf.d/
+COPY entry_point.sh /entry_point.sh
+RUN chmod +x entry_point.sh
+
+COPY dist /usr/share/nginx/html/
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]
+# CMD ["/bin/sh", "/entry_point.sh"];
